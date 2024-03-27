@@ -1,21 +1,11 @@
 <?php
+
 declare(strict_types=1);
 
 namespace App\Controller;
 
-/**
- * Employees Controller
- *
- * @property \App\Model\Table\EmployeesTable $Employees
- * @method \App\Model\Entity\Employee[]|\Cake\Datasource\ResultSetInterface paginate($object = null, array $settings = [])
- */
 class EmployeesController extends AppController
 {
-    /**
-     * Index method
-     *
-     * @return \Cake\Http\Response|null|void Renders view
-     */
     public function index()
     {
         $employees = $this->paginate($this->Employees);
@@ -23,13 +13,54 @@ class EmployeesController extends AppController
         $this->set(compact('employees'));
     }
 
-    /**
-     * View method
-     *
-     * @param string|null $id Employee id.
-     * @return \Cake\Http\Response|null|void Renders view
-     * @throws \Cake\Datasource\Exception\RecordNotFoundException When record not found.
-     */
+    public function commit()
+    {
+        $this->autoRender = false;
+        $employees = $this->Employees->find()->toArray();
+        $totalEmployees = count($employees);
+        $activated = 0;
+        $filePath = WWW_ROOT . 'variables.json';
+
+        foreach ($employees as $employee) {
+            $employee = $this->Employees->patchEntity($employee, $this->request->getData());
+            $employee->active = 1;
+            if ($this->Employees->save($employee)) {
+                $activated += 1;
+                $data = array(
+                    'totalEmployees' => $totalEmployees,
+                    'activated' => $activated
+                );
+                file_put_contents($filePath, json_encode($data));
+            }
+            sleep(5);
+        }
+    }
+
+    public function progress()
+    {
+        $this->autoRender = false;
+        $filePath = WWW_ROOT . 'variables.json';
+        $jsonData = file_get_contents($filePath);
+
+        if ($jsonData !== false) {
+            $data = json_decode($jsonData, true);
+            if (!empty($data)) {
+                $totalEmployees = $data['totalEmployees'];
+                $activated = $data['activated'];
+                $progress = ($activated / $totalEmployees) * 100;
+                echo json_encode(['progress' => $progress]);
+            } else {
+                echo json_encode(['error' => 'JSON file is empty']);
+            }
+        } else {
+            // Unable to read JSON file
+            $this->response->withType('application/json');
+            echo json_encode(['error' => 'Unable to read JSON file']);
+        }
+    }
+
+
+
     public function view($id = null)
     {
         $employee = $this->Employees->get($id, [
@@ -39,11 +70,6 @@ class EmployeesController extends AppController
         $this->set(compact('employee'));
     }
 
-    /**
-     * Add method
-     *
-     * @return \Cake\Http\Response|null|void Redirects on successful add, renders view otherwise.
-     */
     public function add()
     {
         $employee = $this->Employees->newEmptyEntity();
@@ -59,13 +85,6 @@ class EmployeesController extends AppController
         $this->set(compact('employee'));
     }
 
-    /**
-     * Edit method
-     *
-     * @param string|null $id Employee id.
-     * @return \Cake\Http\Response|null|void Redirects on successful edit, renders view otherwise.
-     * @throws \Cake\Datasource\Exception\RecordNotFoundException When record not found.
-     */
     public function edit($id = null)
     {
         $employee = $this->Employees->get($id, [
@@ -83,13 +102,6 @@ class EmployeesController extends AppController
         $this->set(compact('employee'));
     }
 
-    /**
-     * Delete method
-     *
-     * @param string|null $id Employee id.
-     * @return \Cake\Http\Response|null|void Redirects to index.
-     * @throws \Cake\Datasource\Exception\RecordNotFoundException When record not found.
-     */
     public function delete($id = null)
     {
         $this->request->allowMethod(['post', 'delete']);
